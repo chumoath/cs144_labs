@@ -23,8 +23,10 @@ string TCPState::state_summary(const TCPSender &sender) {
         return TCPSenderStateSummary::SYN_SENT;
     } else if (not sender.stream_in().eof()) {
         return TCPSenderStateSummary::SYN_ACKED;
+        //               end_idx                 total written  data + syn + fin, when next_seqno == written, and no data is waiting, then fin sent
     } else if (sender.next_seqno_absolute() < sender.stream_in().bytes_written() + 2) {
         return TCPSenderStateSummary::SYN_ACKED;
+        // fin is already sent, but no receive ackno for fin
     } else if (sender.bytes_in_flight()) {
         return TCPSenderStateSummary::FIN_SENT;
     } else {

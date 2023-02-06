@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <queue>
+#include <deque>
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -21,7 +22,18 @@ class TCPSender {
     WrappingInt32 _isn;
 
     //! outbound queue of segments that the TCPSender wants sent
-    std::queue<TCPSegment> _segments_out{};
+	// send segment
+	std::queue<TCPSegment> _segments_out{};
+
+	struct Retransmission {
+		TCPSegment seg{};
+		uint64_t ddlTick{};
+		uint64_t re_cnt {};
+    bool valid {false};
+	};
+		
+	// retransmit
+	std::deque<Retransmission> _wait {};
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
@@ -31,6 +43,22 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+    uint64_t _window_begin_seqno {0};
+
+	  uint16_t _window_size {1};
+
+	
+  	uint64_t _ddlTick {0};
+
+
+    enum State {
+      	CLOSE,
+      	SYN_SENT,
+		    SYN_ACKED,
+        FIN_SENT
+    };
+
+	State state {CLOSE};
 
   public:
     //! Initialize a TCPSender

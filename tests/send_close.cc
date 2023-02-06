@@ -44,8 +44,8 @@ int main() {
             test.execute(Close{});
             test.execute(ExpectState{TCPSenderStateSummary::FIN_SENT});
             test.execute(ExpectSegment{}.with_fin(true).with_seqno(isn + 1));
-            test.execute(AckReceived{WrappingInt32{isn + 2}});
-            test.execute(ExpectState{TCPSenderStateSummary::FIN_ACKED});
+            test.execute(AckReceived{WrappingInt32{isn + 2}});           // ack for fin, it will invoke fill_window, will repeat sending fin
+            test.execute(ExpectState{TCPSenderStateSummary::FIN_ACKED}); // fin sent and the bytes in flight is 0
             test.execute(ExpectBytesInFlight{0});
             test.execute(ExpectNoSegment{});
         }
@@ -54,7 +54,6 @@ int main() {
             TCPConfig cfg;
             WrappingInt32 isn(rd());
             cfg.fixed_isn = isn;
-
             TCPSenderTestHarness test{"FIN not acked test", cfg};
             test.execute(ExpectSegment{}.with_no_flags().with_syn(true).with_payload_size(0).with_seqno(isn));
             test.execute(AckReceived{WrappingInt32{isn + 1}});
@@ -72,7 +71,6 @@ int main() {
             TCPConfig cfg;
             WrappingInt32 isn(rd());
             cfg.fixed_isn = isn;
-
             TCPSenderTestHarness test{"FIN retx test", cfg};
             test.execute(ExpectSegment{}.with_no_flags().with_syn(true).with_payload_size(0).with_seqno(isn));
             test.execute(AckReceived{WrappingInt32{isn + 1}});

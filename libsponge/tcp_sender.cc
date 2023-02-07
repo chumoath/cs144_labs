@@ -160,7 +160,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
             if (absolute_seqno + reSeg.seg.length_in_sequence_space() <= absolute_ackno) {
                 _wait.pop_front();
                 flag = true;
-            }
+            } else break;
         }
     }
 
@@ -190,18 +190,18 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
 window:
     if (window_size == 0) _window_size = 1, sendOneByte = true;
-    else
-        sendOneByte = false;
+    else _window_size = window_size, sendOneByte = false;
 
 
+    // _window_size is the number of bytes of can send
     if (_wait.empty())
-        _window_size = window_size;
+        _window_size = _window_size;
     else {
         // still have segment is waiting, its window is already use
         assert(_next_seqno > _window_begin_seqno);
-        assert(window_size > _next_seqno - _window_begin_seqno);
-        
-        _window_size = window_size - (_next_seqno - _window_begin_seqno);
+        assert(_window_size > _next_seqno - _window_begin_seqno);
+
+        _window_size = _window_size - (_next_seqno - _window_begin_seqno);
     }
 }
 
@@ -236,6 +236,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const {
+/*
     uint64_t max = 0;
     for (auto & reSeg : _wait) {
         if (reSeg.re_cnt > max)
@@ -243,9 +244,15 @@ unsigned int TCPSender::consecutive_retransmissions() const {
     }
 
     return max;
+*/
+    if (_wait.empty()) return 0;
+    
+    return _wait.front().re_cnt;
 }
 
 void TCPSender::send_empty_segment() {
     TCPSegment seg;
-
+    // sender: seqno SYN FIN payload
+    seg.header().seqno = next_seqno();
+    _segments_out.push(seg);
 }

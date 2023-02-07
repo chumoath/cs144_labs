@@ -44,12 +44,11 @@ class TCPSender {
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
     uint64_t _window_begin_seqno {0};
-
 	  uint16_t _window_size {1};
 
-	
   	uint64_t _ddlTick {0};
 
+    bool sendOneByte {false};
 
     enum State {
       	CLOSE,

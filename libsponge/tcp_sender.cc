@@ -4,6 +4,7 @@
 
 #include <random>
 #include <iostream>
+#include <assert.h>
 using namespace std;
 
 // Dummy implementation of a TCP sender
@@ -34,6 +35,7 @@ uint64_t TCPSender::bytes_in_flight() const {
 }
 
 void TCPSender::fill_window() {
+send:
     switch (state) {
     case CLOSE:
     {
@@ -62,41 +64,45 @@ void TCPSender::fill_window() {
         bool fin = stream_in().input_ended();
         size_t data_size = stream_in().buffer_size();
         size_t to_send_sz = data_size + fin;
-        size_t size;
-
         // no data to send and no need to send fin
-        if (to_send_sz == 0) return;
+        //         it is necessary
+        if (to_send_sz == 0 || _window_size == 0) return;
 
         // window_size == 0 and no data to wait, send one byte avoiding can not be awaked
-
-        if (_window_size == 0) {
-            if (_wait.empty()) _window_size = 1;
-            else
-                return;
-        }
+        // it should not here, because only receive's segment window_size is zero, then set can use is one
+        //if (_window_size == 0) {
+        //    if (_wait.empty()) _window_size = 1;
+        //    else
+        //        return;
+        //}
         
 
         // here, size may include fin
-        size = to_send_sz < _window_size ? (to_send_sz < TCPConfig::MAX_PAYLOAD_SIZE ? to_send_sz : TCPConfig::MAX_PAYLOAD_SIZE) : 
-                                           (_window_size < TCPConfig::MAX_PAYLOAD_SIZE ? _window_size : TCPConfig::MAX_PAYLOAD_SIZE);
 
-        // only have data
-        if (size <= data_size)
+        // MAX_PAYLOAD_SIZE only restrict the payload, not restrict the fin
+        //size = to_send_sz < _window_size ? (to_send_sz < TCPConfig::MAX_PAYLOAD_SIZE ? to_send_sz : TCPConfig::MAX_PAYLOAD_SIZE) : 
+        //                                   (_window_size < TCPConfig::MAX_PAYLOAD_SIZE ? _window_size : TCPConfig::MAX_PAYLOAD_SIZE);
+
+        // data_size
+        //       filter by MAX_PLAYLOAD_SIZE
+        data_size = data_size < TCPConfig::MAX_PAYLOAD_SIZE ? data_size : TCPConfig::MAX_PAYLOAD_SIZE;
+
+        //       filter by _window_size
+        data_size = data_size < _window_size ? data_size : _window_size;
+
+        // eof is already sent, data is extracted completely, data_size < _window_size
+        if (_stream.input_ended() && data_size == _stream.buffer_size() && data_size < _window_size) fin = true;
+        else
             fin = false;
-        else {
-        // have fin, and size need to minus one
-            fin = true;
-            --size;
-        }
 
         // here, size no include fin
         // body
         reSeg.ddlTick = _ddlTick + _initial_retransmission_timeout;
-        Buffer payLoad(stream_in().read(size));
+        Buffer payLoad(stream_in().read(data_size));
         reSeg.seg.payload() = payLoad;
 
         // header
-        if (size != 0) reSeg.seg.header().psh = true;
+        if (data_size != 0) reSeg.seg.header().psh = true;
         
         reSeg.seg.header().seqno = next_seqno();
 
@@ -114,6 +120,10 @@ void TCPSender::fill_window() {
         _segments_out.push(reSeg.seg);
         _wait.push_back(reSeg);
 
+        // only if have window, and have data to send, must send, and only splice
+        //      like a loop, but not replace the next call fill_window
+        if (_window_size != 0)
+            goto send;
         break;
     }
     case FIN_SENT:
@@ -126,6 +136,13 @@ void TCPSender::fill_window() {
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     uint64_t absolute_ackno = unwrap(ackno, _isn, _next_seqno);
 
+    bool flag = false;
+
+    // only the window_size is valid, _next_seqno is the  expecting ackno
+    //         absolute is the last ackno that alreay received
+    if (absolute_ackno == _window_begin_seqno) 
+        goto window;
+
     // error, the ackno is possbily repeat 
     // if (absolute_ackno == 1) state = SYN_ACKED;
     //          if absolute_ackno = 1 repeat,  state = SYN_ACKED, will send the fin repeatly
@@ -133,16 +150,30 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     // impossible ackno, ackno is the next seqno that will send, and is the receiver need's next
     // ackno must be valid
-    if (absolute_ackno <= _next_seqno) {
+
+    // success for ack, then open next item's retransmit
+
+    // ack must be greater than the window first seqno
+    if (absolute_ackno >= _window_begin_seqno && absolute_ackno <= _next_seqno) {
         for (auto & reSeg : _wait) {
             uint64_t absolute_seqno = unwrap(reSeg.seg.header().seqno, _isn, _next_seqno);
             if (absolute_seqno + reSeg.seg.length_in_sequence_space() <= absolute_ackno) {
                 _wait.pop_front();
+                flag = true;
             }
         }
     }
 
-    if (_wait.empty()) {
+    // ack is successful, and the next is time out,  send
+    if (flag && !_wait.empty()) {
+        Retransmission & reSeg = _wait.front();
+        // only open, don't send again
+        reSeg.ddlTick = _ddlTick + _initial_retransmission_timeout;
+    }
+
+
+    // ackno is valid, then _window_begin is possible changed
+    if (flag && _wait.empty()) {
         _window_begin_seqno = _next_seqno;
     } else {
         _window_begin_seqno = unwrap(_wait.front().seg.header().seqno, _isn, _next_seqno);
@@ -153,35 +184,55 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     // _window_size is the actual bytes that can be sent
     //       window_size is updated when a ack arrive, in the moment, the SYN already pop, so SYN no occupy the window_size
     //       and the window_size is updated first when a ack for SYN arrive
-    if (_wait.empty()) 
-        _window_size = window_size;
-    else
-        _window_size = window_size - (_next_seqno - _window_begin_seqno);
+    
+    // if ackno is a part of a segment, it is invalid, the window_size is invaid, still use last
+    if (!flag) return;
 
+window:
+    if (window_size == 0) _window_size = 1, sendOneByte = true;
+    else
+        sendOneByte = false;
+
+
+    if (_wait.empty())
+        _window_size = window_size;
+    else {
+        // still have segment is waiting, its window is already use
+        assert(_next_seqno > _window_begin_seqno);
+        assert(window_size > _next_seqno - _window_begin_seqno);
+        
+        _window_size = window_size - (_next_seqno - _window_begin_seqno);
+    }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
     // the elapsed time
     _ddlTick += ms_since_last_tick;
+    if (_wait.empty()) return;
 
-    // find the over ddl's segment, and retransmit
-    for (auto & reSeg : _wait) {
-        // time out
-        if (reSeg.ddlTick <= _ddlTick) {
-            
+    // only retransmission the first, per time only retransmit one, until it is acked
+    auto & reSeg = _wait.front();
+    // time out
+    if (reSeg.ddlTick <= _ddlTick) {
 
-            // error => ddlTick is ddl time, not a time segment
-            ++reSeg.re_cnt;
-            
-            if (reSeg.re_cnt > TCPConfig::MAX_RETX_ATTEMPTS) {
+        // error => ddlTick is ddl time, not a time segment
+        ++reSeg.re_cnt;
+        
+        // exceed the max retry times
+        if (reSeg.re_cnt > TCPConfig::MAX_RETX_ATTEMPTS) {
 
-            }
-
-            reSeg.ddlTick = _ddlTick + std::pow(2, reSeg.re_cnt) * _initial_retransmission_timeout;
-            _segments_out.push(reSeg.seg);
         }
-    }    
+
+        if (sendOneByte) {
+            assert(reSeg.seg.length_in_sequence_space() == 1);
+            reSeg.ddlTick = _ddlTick + _initial_retransmission_timeout;
+        }
+        else 
+            reSeg.ddlTick = _ddlTick + std::pow(2, reSeg.re_cnt) * _initial_retransmission_timeout;
+        
+        _segments_out.push(reSeg.seg);
+    }
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const {

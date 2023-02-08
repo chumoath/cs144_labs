@@ -72,7 +72,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     // receiver concern: SYN FIN seqno payload
     //      influence the receiver, may cause _receiver's bytestream is ended
-    _receiver.segment_received(seg);
+
+    if (seg.length_in_sequence_space() != 0)
+        _receiver.segment_received(seg);
 
     if (_receiver.stream_out().input_ended()) {
         _receive_fin = true;

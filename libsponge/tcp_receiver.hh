@@ -29,7 +29,8 @@ class TCPReceiver {
 		CLOSED,
 		SYN_RECV,
 		// SYN_SENT,
-		ESTABLISHED
+		ESTABLISHED,
+    FIN_RECV
     };
 
 	Status status {Status::CLOSED};

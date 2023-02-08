@@ -198,10 +198,13 @@ window:
         _window_size = _window_size;
     else {
         // still have segment is waiting, its window is already use
-        assert(_next_seqno > _window_begin_seqno);
-        assert(_window_size > _next_seqno - _window_begin_seqno);
-
-        _window_size = _window_size - (_next_seqno - _window_begin_seqno);
+        //assert(_next_seqno > _window_begin_seqno);
+        //assert(_window_size > _next_seqno - _window_begin_seqno);
+        //                         the bytes of waiting data
+        if (_window_size <= _next_seqno - _window_begin_seqno)
+            _window_size = 0;
+        else
+            _window_size = _window_size - (_next_seqno - _window_begin_seqno);
     }
 }
 

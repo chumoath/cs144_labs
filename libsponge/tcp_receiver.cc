@@ -10,23 +10,26 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 std::pair<string, uint64_t> TCPReceiver::get_valid_string(uint64_t absolute_seqno, uint64_t absolute_ackno, Buffer & payLoad) {
-    cout << "absolute_seqno: " << absolute_seqno << endl;
-    cout << "absolute_ackno: " << absolute_ackno << endl;
     uint64_t dataBegin = absolute_seqno;
     uint64_t dataEnd = absolute_seqno + payLoad.size();
     uint64_t winBegin = absolute_ackno;
     uint64_t winEnd = absolute_ackno + window_size();
-
+    
+    /*  debug
+    cout << "absolute_ackno: " << absolute_ackno << endl;
+    cout << "absolute_seqno: " << absolute_seqno << endl;
     cout << "dataBegin: " << dataBegin << endl;
     cout << "dataEnd: " << dataEnd << endl;
     cout << "winBegin: " << winBegin << endl;
     cout << "winEnd: " << winEnd << endl;
+    */
 
     string s;
     uint64_t index;
     // invalid
     if (dataEnd <= winBegin || dataBegin >= winEnd) {
-        cout << "invalid" << endl;
+        cout << "data empty" << endl;
+        s = "";
         index = winBegin - 1;
     }
     // left
@@ -137,20 +140,22 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     }
     case Status::SYN_RECV:
     {
+       
         uint64_t absolute_ackno = unwrap(_ackno, _isn, _reassembler.ackno_index());
         uint64_t absolute_seqno = unwrap(header.seqno, _isn, _reassembler.ackno_index());
-        
+ 
         std::pair<string, uint64_t> pair = get_valid_string(absolute_seqno, absolute_ackno, payLoad);    
         bool fin = get_fin(header, payLoad, absolute_seqno, absolute_ackno);
 
         // 带 fin 的包 可能提前到达，期待的包 可能后面才到，它没有带 fin，所以，无法使用该 fin，使 ackno + 1
         _reassembler.push_substring(pair.first, pair.second, fin);
 
-        cout << "actual write bytes: " << _reassembler.stream_out().bytes_written() << endl;
-        cout << "unreassemble bytes: " << _reassembler.unassembled_bytes() << endl;
-        cout << "window_size: " << window_size() << endl;
+        // debug
+        // cout << "actual write bytes: " << _reassembler.stream_out().bytes_written() << endl;
+        // cout << "unreassemble bytes: " << _reassembler.unassembled_bytes() << endl;
+        // cout << "window_size: " << window_size() << endl;
 
-        _reassembler.dump_cache_graph(_isn.raw_value());
+        // _reassembler.dump_cache_graph(_isn.raw_value());
         
         // 增加 _ackno
 
@@ -161,7 +166,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         // 这里有 bug， absolute_seqno 可能是 在确认号的左边，所以 要使用 实际写入数据开始的的 absolute_seqno
 
         // pair.second 是 实际要输入数据 的 索引号，所以 index + 1 = 实际输入数据的absolute_seqno
-        
+
         // *************************************    modigy bug   ******************************************************
         absolute_seqno = pair.second + 1;
         if (absolute_ackno == absolute_seqno) {
@@ -171,8 +176,15 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
             //                                                                              只有 向 byte_stream 输入 EOF 后，该值 才会加上
             // stream_out().eof()  是 用户读的时候判断是否读到 eof
         }
+
+        // avoid _ackno is increased
+        if (_reassembler.stream_out().input_ended()) {
+            status = FIN_RECV;
+        }
     }
     case Status::ESTABLISHED:
+        ;
+    case Status::FIN_RECV:
         ;
     }
 

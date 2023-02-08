@@ -37,25 +37,6 @@ size_t TCPConnection::time_since_last_segment_received() const {
 
 void TCPConnection::segment_received(const TCPSegment &seg) { 
     _last_receive_tick = _tick;
-    
-    if (_receive_fin && _send_fin && _linger_after_streams_finish) {
-        
-        WrappingInt32 ackno = _receiver.ackno().value();
-
-        // is fin and is valid
-        if (seg.header().fin && seg.header().seqno + seg.length_in_sequence_space() == ackno) {
-            
-            _sender.send_empty_segment();
-            TCPSegment & s = _sender.segments_out().front();
-            _sender.segments_out().pop();
-
-            s.header().ack = true;
-            s.header().ackno = ackno;
-            _segments_out.push(s);
-        }
-        return;
-    }
-
 
     // RST
     if (seg.header().rst) {
@@ -130,7 +111,6 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
             _active = false;
             _linger_after_streams_finish = false;
         }
-        return;
     }
 
 
@@ -176,14 +156,17 @@ void TCPConnection::sendSegments() {
     // _sender fill window
     _sender.fill_window();
 
-    // next_seqno => already send's bytes
-    if (_sender.next_seqno_absolute() >= _sender.stream_in().bytes_written() + 2 && _sender.bytes_in_flight() != 0) {
+    // next_seqno => already send's bytes, no need to ack fin
+    if (_sender.next_seqno_absolute() >= _sender.stream_in().bytes_written() + 2) {
         tcp_state = FIN_SENT;
         _send_fin = true;
 
-        if (_receive_fin) _linger_after_streams_finish = false;
+        if (!_signed_linger){
+            if (_receive_fin) _linger_after_streams_finish = false;
+            _signed_linger = true;
+        }
     }
- 
+
     // connection send actually
     while (!_sender.segments_out().empty()) {
         TCPSegment & seg = _sender.segments_out().front();

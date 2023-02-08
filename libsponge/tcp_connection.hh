@@ -20,10 +20,10 @@ class TCPConnection {
     //! Should the TCPConnection stay active (and keep ACKing)
     //! for 10 * _cfg.rt_timeout milliseconds after both streams have ended,
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
+    bool _signed_linger {false};
     bool _linger_after_streams_finish{true};
     bool _receive_fin {false};
     bool _send_fin {false};
-    bool _all_end {false};
 
     enum State {
         CLOSE,

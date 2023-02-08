@@ -71,6 +71,8 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
     size_t e_idx = index + static_cast<size_t>(e - b);
 
     Position pos = findPosition(b_idx, e_idx);
+
+    /*
     switch (pos.status)
     {
     case BOUTEOUT:
@@ -101,7 +103,7 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
         cout << "BATENOBOUT" << endl;
         break;
     }
-
+*/
     switch (pos.status) {
         case BOUTEOUT: {
             // new one cache, store (b, e), delete [first_iter, last_iter), link to the location before the last_iter

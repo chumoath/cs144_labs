@@ -28,33 +28,33 @@ std::pair<string, uint64_t> TCPReceiver::get_valid_string(uint64_t absolute_seqn
     uint64_t index;
     // invalid
     if (dataEnd <= winBegin || dataBegin >= winEnd) {
-        cout << "data empty" << endl;
+        // cout << "data empty" << endl;
         s = "";
         index = winBegin - 1;
     }
     // left
     else if (dataBegin < winBegin && dataEnd <= winEnd) {
-        cout << "left" << endl;
+        // cout << "left" << endl;
         uint64_t l = winBegin - dataBegin;
         s = string(payLoad.str().begin() + l, payLoad.str().end());
         index = winBegin - 1;
     }
     // middle
     else if (dataBegin >= winBegin && dataEnd <= winEnd) {
-        cout << "middle" << endl;
+        // cout << "middle" << endl;
         s = string(payLoad.str().begin(), payLoad.str().end());
         index = dataBegin - 1;
     }
     // right
     else if (dataBegin >= winBegin && dataEnd > winEnd){
-        cout << "right" << endl;
+        // cout << "right" << endl;
         uint64_t r = dataEnd - winEnd;
         s = string(payLoad.str().begin(), payLoad.str().end() - r);
         index = dataBegin - 1;
     }
     // cover
     else if (dataBegin <= winBegin && dataEnd >= winEnd) {
-        cout << "cover" << endl;
+        // cout << "cover" << endl;
         uint64_t l = winBegin - dataBegin;
         uint64_t r = dataEnd - winEnd;
         s = string(payLoad.str().begin() + l, payLoad.str().end() - r);

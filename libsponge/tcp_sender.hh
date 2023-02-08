@@ -29,7 +29,6 @@ class TCPSender {
 		TCPSegment seg{};
 		uint64_t ddlTick{};
 		uint64_t re_cnt {};
-    bool valid {false};
 	};
 		
 	// retransmit

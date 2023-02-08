@@ -71,6 +71,36 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
     size_t e_idx = index + static_cast<size_t>(e - b);
 
     Position pos = findPosition(b_idx, e_idx);
+    switch (pos.status)
+    {
+    case BOUTEOUT:
+        cout << "BOUTEOUT" << endl;
+        break;
+
+    case BINEOUT:
+        cout << "BINEOUT" << endl;
+        break;
+
+    case BOUTEIN:
+        cout << "BOUTEIN" << endl;
+        break;
+
+    case BINEIN:
+        cout << "BINEIN" << endl;
+        break;
+    
+    case BNOENO:
+        cout << "BNOENO" << endl;
+        break;
+    
+    case BATENOBIN:
+        cout << "BATENOBIN" << endl;
+        break;
+
+    case BATENOBOUT:
+        cout << "BATENOBOUT" << endl;
+        break;
+    }
 
     switch (pos.status) {
         case BOUTEOUT: {
@@ -90,6 +120,7 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
             pos.first_iter->s =
                 string(pos.first_iter->s.begin(), pos.first_iter->s.begin() + (b_idx - pos.first_iter->idx)) +
                 string(b, e);
+
 
             cache_list->erase(++pos.first_iter, pos.last_iter);
             break;

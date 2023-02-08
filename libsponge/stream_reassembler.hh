@@ -7,7 +7,7 @@
 #include <list>
 #include <memory>
 #include <string>
-
+#include <iostream>
 using namespace std;
 
 /* 整体思路：
@@ -197,10 +197,10 @@ class StreamReassembler {
         BINEIN,
         BINEOUT,
 
-        // BNO ENO
+        // BNO ENO   => NO, out of cache 
         BNOENO,
 
-        // BAT ENO BOUT
+        // BAT ENO BOUT    => AT, in the cache list
         BATENOBOUT,
         // BAT ENO BIN
         BATENOBIN
@@ -274,6 +274,29 @@ class StreamReassembler {
 
       return _eof_bytes == next_idx;
   }
+	// for debug
+	void dump_cache_graph(uint64_t _isn) {
+		cout << "--------------------------------------------------------" << endl;
+		
+    for (auto & c : *cache_list) {
+			cout << "|    ";
+
+			cout << "begin: " << _isn + c.idx + 1;
+			
+			cout << "      ";
+			
+			cout << "end:" << _isn + c.idx + c.s.size() + 1;
+
+      cout << "      ";
+
+      cout << "size:" << c.s.size();
+
+			cout << endl;
+		}
+
+		cout << "--------------------------------------------------------" << endl;
+	}
+
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

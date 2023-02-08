@@ -10,15 +10,23 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 std::pair<string, uint64_t> TCPReceiver::get_valid_string(uint64_t absolute_seqno, uint64_t absolute_ackno, Buffer & payLoad) {
+    cout << "absolute_seqno: " << absolute_seqno << endl;
+    cout << "absolute_ackno: " << absolute_ackno << endl;
     uint64_t dataBegin = absolute_seqno;
     uint64_t dataEnd = absolute_seqno + payLoad.size();
     uint64_t winBegin = absolute_ackno;
     uint64_t winEnd = absolute_ackno + window_size();
 
+    cout << "dataBegin: " << dataBegin << endl;
+    cout << "dataEnd: " << dataEnd << endl;
+    cout << "winBegin: " << winBegin << endl;
+    cout << "winEnd: " << winEnd << endl;
+
     string s;
     uint64_t index;
     // invalid
     if (dataEnd <= winBegin || dataBegin >= winEnd) {
+        cout << "invalid" << endl;
         index = winBegin - 1;
     }
     // left
@@ -30,17 +38,20 @@ std::pair<string, uint64_t> TCPReceiver::get_valid_string(uint64_t absolute_seqn
     }
     // middle
     else if (dataBegin >= winBegin && dataEnd <= winEnd) {
+        cout << "middle" << endl;
         s = string(payLoad.str().begin(), payLoad.str().end());
         index = dataBegin - 1;
     }
     // right
     else if (dataBegin >= winBegin && dataEnd > winEnd){
+        cout << "right" << endl;
         uint64_t r = dataEnd - winEnd;
         s = string(payLoad.str().begin(), payLoad.str().end() - r);
         index = dataBegin - 1;
     }
     // cover
     else if (dataBegin <= winBegin && dataEnd >= winEnd) {
+        cout << "cover" << endl;
         uint64_t l = winBegin - dataBegin;
         uint64_t r = dataEnd - winEnd;
         s = string(payLoad.str().begin() + l, payLoad.str().end() - r);
@@ -135,7 +146,24 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         // 带 fin 的包 可能提前到达，期待的包 可能后面才到，它没有带 fin，所以，无法使用该 fin，使 ackno + 1
         _reassembler.push_substring(pair.first, pair.second, fin);
 
+        cout << "actual write bytes: " << _reassembler.stream_out().bytes_written() << endl;
+        cout << "unreassemble bytes: " << _reassembler.unassembled_bytes() << endl;
+        cout << "window_size: " << window_size() << endl;
+
+        _reassembler.dump_cache_graph(_isn.raw_value());
+        
         // 增加 _ackno
+
+        // ******************************************        *********************************************************
+        // ******************************************   bug  *********************************************************
+        // ******************************************        *********************************************************
+
+        // 这里有 bug， absolute_seqno 可能是 在确认号的左边，所以 要使用 实际写入数据开始的的 absolute_seqno
+
+        // pair.second 是 实际要输入数据 的 索引号，所以 index + 1 = 实际输入数据的absolute_seqno
+        
+        // *************************************    modigy bug   ******************************************************
+        absolute_seqno = pair.second + 1;
         if (absolute_ackno == absolute_seqno) {
             //                     下一个需要的 absolute_ackno     当前收到的
             // _ackno 是 下一个期望收到的 序列号，所以，必须 全都放到 byte_stream 才能加 fin       

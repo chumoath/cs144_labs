@@ -38,6 +38,29 @@ size_t TCPConnection::time_since_last_segment_received() const {
 void TCPConnection::segment_received(const TCPSegment &seg) { 
     _last_receive_tick = _tick;
 
+
+    // LISTEN
+    if (tcp_state == CLOSE) {
+
+        if (seg.header().rst)
+            return;
+        else if (seg.header().ack)
+            return;
+        else if (seg.header().syn) {
+            // be sent syn
+            tcp_state = SYN_RECV;
+        }
+        else {
+            // no need the valid seqno
+            TCPSegment s;
+            s.header().rst = true;
+            s.header().seqno = seg.header().ackno;
+
+            _segments_out.push(s);
+            return;
+        }
+    }
+
     // RST
     if (seg.header().rst) {
         _sender.stream_in().set_error();
@@ -46,6 +69,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
+
     // receiver concern: SYN FIN seqno payload
     //      influence the receiver, may cause _receiver's bytestream is ended
     _receiver.segment_received(seg);
@@ -53,6 +77,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     if (_receiver.stream_out().input_ended()) {
         _receive_fin = true;
         _receive_fin_tick = _tick;
+
+        if (!_signed_linger) {
+            if (_send_fin) _linger_after_streams_finish = true;
+            else _linger_after_streams_finish = false;
+            _signed_linger = true;
+        }
     }
 
     // sender concern: ackno win
@@ -72,18 +102,20 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     // have received SYN                         this segment's length is zero               seg's seqno == expecting ackno - 1
     if (_receiver.ackno().has_value() && (seg.length_in_sequence_space() == 0) && (seg.header().seqno == _receiver.ackno().value() - 1))
         _sender.send_empty_segment();
-
-    // here3       
+    
+    // send all segment that sender produced
+    sendSegments();
+    
     // must send a segment to reflect receive this seg
     if (seg.length_in_sequence_space() != 0) {
-        if (_sender.segments_out().empty()) {
+        if (_segments_out.empty()) {
             _sender.send_empty_segment();
         }
     }
 
-    // send all segment that sender produced
     sendSegments();
 }
+
 
 bool TCPConnection::active() const {
     return _active;
@@ -106,6 +138,9 @@ size_t TCPConnection::write(const string &data) {
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _tick += ms_since_last_tick;
 
+    // listen, no need to send data or retransmit
+    if (tcp_state == CLOSE) return;
+
     if (_receive_fin && _send_fin && _linger_after_streams_finish) {
         if (_tick >= _receive_fin_tick + 10 * _cfg.rt_timeout) {
             _active = false;
@@ -123,6 +158,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
     }
 
     // time out's segment will be retransmitted
+    //   if state in CLOSE, will send SYN
     sendSegments();
 }
 
@@ -163,9 +199,11 @@ void TCPConnection::sendSegments() {
 
         if (!_signed_linger){
             if (_receive_fin) _linger_after_streams_finish = false;
+            else _linger_after_streams_finish = true;
             _signed_linger = true;
         }
     }
+
 
     // connection send actually
     while (!_sender.segments_out().empty()) {

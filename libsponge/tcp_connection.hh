@@ -29,6 +29,7 @@ class TCPConnection {
         CLOSE,
         SYN_SENT,
         SYN_ACKED,
+        SYN_RECV,
         FIN_SENT,
         FIN_ACKED,
         ERROR

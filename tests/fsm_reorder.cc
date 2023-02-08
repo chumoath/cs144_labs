@@ -103,6 +103,9 @@ int main() {
 
             WrappingInt32 min_expect_ackno = rx_isn + 1;
             WrappingInt32 max_expect_ackno = rx_isn + 1;
+
+            cout << "--------------------------------------" << endl;
+            cout << "*****************************************************************" << endl;
             for (auto [off, sz] : seq_size) {
                 test_2.send_data(rx_isn + 1 + off, tx_isn + 1, d.cbegin() + off, d.cbegin() + off + sz);
                 if (off <= min_expect_ackno.raw_value() && off + sz > min_expect_ackno.raw_value()) {

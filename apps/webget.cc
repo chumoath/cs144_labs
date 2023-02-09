@@ -1,17 +1,17 @@
-#include "socket.hh"
+// #include "socket.hh"
 #include "util.hh"
 
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
-
+#include "tcp_sponge_socket.hh"
 using namespace std;
 
 void get_URL(const string &host, const string &path) {
     // Your code here.
 
     // Socket 自动创建 socket 文件描述符，通过调用 socket()
-    TCPSocket sock;
+    FullStackSocket sock;
 
     try {
         sock.connect(Address(host, "http"));
@@ -39,6 +39,8 @@ void get_URL(const string &host, const string &path) {
         cout << reponse;
     }
 
+    sock.wait_until_closed();
+    
     // sock 会调用 TCPSoceket 的析构函数 => 调用 Socket 的虚构函数 => 调用 FileDescriptor 的析构函数
     //               调用 shared_ptr 的析构函数，减少对该underlying fd 的 FDWrapper 的 引用计数
     //               FDWrapper 的 引用计数为 0， 即 没有 FileDescriptor 使用它，最后一个 shared_ptr 就会调用其析构函数

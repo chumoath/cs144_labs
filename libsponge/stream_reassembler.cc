@@ -90,11 +90,11 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
     case BINEIN:
         cout << "BINEIN" << endl;
         break;
-    
+
     case BNOENO:
         cout << "BNOENO" << endl;
         break;
-    
+
     case BATENOBIN:
         cout << "BATENOBIN" << endl;
         break;
@@ -122,7 +122,6 @@ size_t StreamReassembler::doInsertData(const size_t index, string::const_iterato
             pos.first_iter->s =
                 string(pos.first_iter->s.begin(), pos.first_iter->s.begin() + (b_idx - pos.first_iter->idx)) +
                 string(b, e);
-
 
             cache_list->erase(++pos.first_iter, pos.last_iter);
             break;

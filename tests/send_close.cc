@@ -44,8 +44,9 @@ int main() {
             test.execute(Close{});
             test.execute(ExpectState{TCPSenderStateSummary::FIN_SENT});
             test.execute(ExpectSegment{}.with_fin(true).with_seqno(isn + 1));
-            test.execute(AckReceived{WrappingInt32{isn + 2}});           // ack for fin, it will invoke fill_window, will repeat sending fin
-            test.execute(ExpectState{TCPSenderStateSummary::FIN_ACKED}); // fin sent and the bytes in flight is 0
+            test.execute(AckReceived{
+                WrappingInt32{isn + 2}});  // ack for fin, it will invoke fill_window, will repeat sending fin
+            test.execute(ExpectState{TCPSenderStateSummary::FIN_ACKED});  // fin sent and the bytes in flight is 0
             test.execute(ExpectBytesInFlight{0});
             test.execute(ExpectNoSegment{});
         }

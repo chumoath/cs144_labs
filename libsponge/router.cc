@@ -39,13 +39,15 @@ void Router::add_route(const uint32_t route_prefix,
 void Router::route_one_datagram(InternetDatagram &dgram) {
     DUMMY_CODE(dgram);
     // Your code here.
-    
+
     // ttl is zero, directly drop
-    if (dgram.header().ttl == 0) return;
+    if (dgram.header().ttl == 0)
+        return;
     // modify ttl
     dgram.header().ttl--;
-    
-    if (dgram.header().ttl == 0) return;
+
+    if (dgram.header().ttl == 0)
+        return;
     // directly modify ip, then interface modify the mac
 
     uint64_t max_prefix = 0;
@@ -53,9 +55,9 @@ void Router::route_one_datagram(InternetDatagram &dgram) {
     bool matched = false;
 
     // find the most specific route
-    for (auto & entry : _route_table) {
+    for (auto &entry : _route_table) {
         uint64_t mask = getMask(entry.prefix_length);
-    
+
         if ((dgram.header().dst & mask) == (entry.route_prefix & mask)) {
             // must >=. because prefix_length may be zero
             if (entry.prefix_length >= max_prefix) {
@@ -69,8 +71,8 @@ void Router::route_one_datagram(InternetDatagram &dgram) {
     // may be have default route, its route_prefix = 0.0.0.0, prefix_length = 0
 
     // no match  =>  drop directly
-    if (!matched)  return;
-
+    if (!matched)
+        return;
 
     // get the next_hop     =>   next_hop is empty, next_hop is dest itself; the child network in the router
     //                      =>                                               next hop is the next router's ip

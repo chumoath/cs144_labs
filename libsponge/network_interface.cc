@@ -49,13 +49,12 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
         return;
     }
 
-
     // ip not in map
 
     // send to wait queue
     if (_waitArp.find(next_hop_ip) == _waitArp.end())
         _waitArp[next_hop_ip] = make_shared<queue<EthernetFrame>>();
-    
+
     _waitArp[next_hop_ip]->push(std::move(frame));
 
     // send arp request
@@ -74,11 +73,11 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
         return;
     }
 
-
     // no find, send
     EthernetFrame arpFrame;
     // arp msg's dst should be empty, namely invalid
-    ARPMessage arpMsg = assembleOneARP(_ethernet_address, {0}, _ip_address.ipv4_numeric(), next_hop_ip, ARPMessage::OPCODE_REQUEST);
+    ARPMessage arpMsg =
+        assembleOneARP(_ethernet_address, {0}, _ip_address.ipv4_numeric(), next_hop_ip, ARPMessage::OPCODE_REQUEST);
     arpFrame.header() = assembleOneEtherHeader(_ethernet_address, ETHERNET_BROADCAST, EthernetHeader::TYPE_ARP);
     arpFrame.payload() = std::move(arpMsg.serialize());
 
@@ -89,78 +88,83 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
 
 //! \param[in] frame the incoming Ethernet frame
 optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &frame) {
-
     switch (frame.header().type) {
-    case EthernetHeader::TYPE_ARP:
-    { 
-        ARPMessage arpMsg;
-        // parse error
-        if (arpMsg.parse(frame.payload().concatenate()) != ParseResult::NoError) return {};
-        
-        // dest ip is not me
-        if (arpMsg.target_ip_address != _ip_address.ipv4_numeric()) return {};
+        case EthernetHeader::TYPE_ARP: {
+            ARPMessage arpMsg;
+            // parse error
+            if (arpMsg.parse(frame.payload().concatenate()) != ParseResult::NoError)
+                return {};
 
+            // dest ip is not me
+            if (arpMsg.target_ip_address != _ip_address.ipv4_numeric())
+                return {};
 
-        if (arpMsg.opcode == ARPMessage::OPCODE_REQUEST) {
-            // request, dst should be ff:ff:ff:ff:ff:ff
-            if (frame.header().dst != ETHERNET_BROADCAST) return {};
+            if (arpMsg.opcode == ARPMessage::OPCODE_REQUEST) {
+                // request, dst should be ff:ff:ff:ff:ff:ff
+                if (frame.header().dst != ETHERNET_BROADCAST)
+                    return {};
 
-            // 此处应该将 主动送上门的 ip->mac 映射起来
-            _ip2mac[arpMsg.sender_ip_address] = {_tick + 30 * 1000, arpMsg.sender_ethernet_address};
+                // 此处应该将 主动送上门的 ip->mac 映射起来
+                _ip2mac[arpMsg.sender_ip_address] = {_tick + 30 * 1000, arpMsg.sender_ethernet_address};
 
-            // receive arp request
-            EthernetFrame f;
-            arpMsg = assembleOneARP(_ethernet_address, arpMsg.sender_ethernet_address, _ip_address.ipv4_numeric(), arpMsg.sender_ip_address, ARPMessage::OPCODE_REPLY);
+                // receive arp request
+                EthernetFrame f;
+                arpMsg = assembleOneARP(_ethernet_address,
+                                        arpMsg.sender_ethernet_address,
+                                        _ip_address.ipv4_numeric(),
+                                        arpMsg.sender_ip_address,
+                                        ARPMessage::OPCODE_REPLY);
 
-            f.header() = assembleOneEtherHeader(_ethernet_address, frame.header().src, EthernetHeader::TYPE_ARP);
-            f.payload() = std::move(arpMsg.serialize());
+                f.header() = assembleOneEtherHeader(_ethernet_address, frame.header().src, EthernetHeader::TYPE_ARP);
+                f.payload() = std::move(arpMsg.serialize());
 
-            _frames_out.push(f);
-            
-        } else if (arpMsg.opcode == ARPMessage::OPCODE_REPLY) {
-            
-            // reply, dst should be my mac address
-            if (frame.header().dst != _ethernet_address) return {};
-            // receive arp reply
-            EthernetAddress mac = arpMsg.sender_ethernet_address;
-            uint32_t ip = arpMsg.sender_ip_address;
+                _frames_out.push(f);
 
-            // insert to cache            
-            _ip2mac.insert({ip, {_tick + 30 * 1000, mac}});
+            } else if (arpMsg.opcode == ARPMessage::OPCODE_REPLY) {
+                // reply, dst should be my mac address
+                if (frame.header().dst != _ethernet_address)
+                    return {};
+                // receive arp reply
+                EthernetAddress mac = arpMsg.sender_ethernet_address;
+                uint32_t ip = arpMsg.sender_ip_address;
 
-            // remove from _arp_requests
-            auto iter = _arp_requests.find(ip);
-            if (iter != _arp_requests.end())
-                _arp_requests.erase(iter);
+                // insert to cache
+                _ip2mac.insert({ip, {_tick + 30 * 1000, mac}});
 
-            // send all waiting frame
-            sendFrameWaitArp(ip, mac);
+                // remove from _arp_requests
+                auto iter = _arp_requests.find(ip);
+                if (iter != _arp_requests.end())
+                    _arp_requests.erase(iter);
+
+                // send all waiting frame
+                sendFrameWaitArp(ip, mac);
+            }
+
+            return {};
+            break;
+        }
+        case EthernetHeader::TYPE_IPv4: {
+            // the frame is not sent to me
+            if (frame.header().dst != _ethernet_address)
+                return {};
+
+            InternetDatagram datagram;
+
+            if (datagram.parse(frame.payload().concatenate()) != ParseResult::NoError)
+                return {};
+
+            return optional<InternetDatagram>{std::move(datagram)};
+
+            break;
         }
 
-        return {};
-        break;
-    }
-    case EthernetHeader::TYPE_IPv4:
-    {
-       // the frame is not sent to me
-       if (frame.header().dst != _ethernet_address) return {};
-
-       InternetDatagram datagram;
-
-        if (datagram.parse(frame.payload().concatenate()) != ParseResult::NoError) return {};
-
-        return optional<InternetDatagram>{std::move(datagram)};
-        
-        break;
-    }
-
-    default:
-        return {};
+        default:
+            return {};
     }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void NetworkInterface::tick(const size_t ms_since_last_tick) { 
+void NetworkInterface::tick(const size_t ms_since_last_tick) {
     _tick += ms_since_last_tick;
 
     // traverse _ip2mac to check whether out of date or not
@@ -169,7 +173,7 @@ void NetworkInterface::tick(const size_t ms_since_last_tick) {
     while (iter != _ip2mac.end()) {
         // out of date
         auto next_iter = ++iter;
-        
+
         --iter;
 
         if (iter->second.first <= _tick)
@@ -179,10 +183,11 @@ void NetworkInterface::tick(const size_t ms_since_last_tick) {
     }
 }
 
-
-
-ARPMessage NetworkInterface::assembleOneARP(EthernetAddress src, EthernetAddress dst, uint32_t ip_src, uint32_t ip_dst, uint16_t opcode) {
-    
+ARPMessage NetworkInterface::assembleOneARP(EthernetAddress src,
+                                            EthernetAddress dst,
+                                            uint32_t ip_src,
+                                            uint32_t ip_dst,
+                                            uint16_t opcode) {
     ARPMessage arpMsg;
     arpMsg.opcode = opcode;
     arpMsg.sender_ip_address = ip_src;
@@ -201,23 +206,21 @@ EthernetHeader NetworkInterface::assembleOneEtherHeader(EthernetAddress src, Eth
     return etherHeader;
 }
 
-
 void NetworkInterface::sendFrameWaitArp(uint32_t ip, EthernetAddress mac) {
+    // send all this ip's segment
+    auto wait_send_iter = _waitArp.find(ip);
+    if (wait_send_iter == _waitArp.end())
+        return;
 
-        // send all this ip's segment
-        auto wait_send_iter = _waitArp.find(ip);
-        if (wait_send_iter == _waitArp.end()) return;
+    shared_ptr<queue<EthernetFrame>> wait_send_queue_ptr = wait_send_iter->second;
 
-        shared_ptr<queue<EthernetFrame>> wait_send_queue_ptr = wait_send_iter->second;
+    while (!wait_send_queue_ptr->empty()) {
+        EthernetFrame f = wait_send_queue_ptr->front();
+        wait_send_queue_ptr->pop();
+        f.header().dst = mac;
 
-        while (!wait_send_queue_ptr->empty()) {
+        _frames_out.push(f);
+    }
 
-            EthernetFrame f = wait_send_queue_ptr->front();
-            wait_send_queue_ptr->pop();
-            f.header().dst = mac;
-
-            _frames_out.push(f);
-        }
-
-        _waitArp.erase(wait_send_iter);
+    _waitArp.erase(wait_send_iter);
 }

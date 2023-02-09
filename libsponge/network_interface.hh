@@ -1,15 +1,15 @@
 #ifndef SPONGE_LIBSPONGE_NETWORK_INTERFACE_HH
 #define SPONGE_LIBSPONGE_NETWORK_INTERFACE_HH
 
+#include "arp_message.hh"
 #include "ethernet_frame.hh"
 #include "tcp_over_ip.hh"
 #include "tun.hh"
-#include "arp_message.hh"
 
-#include <optional>
-#include <queue>
 #include <map>
 #include <memory>
+#include <optional>
+#include <queue>
 using namespace std;
 //! \brief A "network interface" that connects IP (the internet layer, or network layer)
 //! with Ethernet (the network access layer, or link layer).
@@ -44,29 +44,33 @@ class NetworkInterface {
     std::queue<EthernetFrame> _frames_out{};
 
     struct MacAddress {
-		EthernetAddress _ethernet_address {};
-		uint64_t _ddl_tick {0};
+        EthernetAddress _ethernet_address{};
+        uint64_t _ddl_tick{0};
     };
 
-	uint64_t _tick {0};
+    uint64_t _tick{0};
 
-	// cache
-	//         ip             ddl_tick        mac
-	std::map<uint32_t, std::pair<uint64_t, EthernetAddress>> _ip2mac {};
+    // cache
+    //         ip             ddl_tick        mac
+    std::map<uint32_t, std::pair<uint64_t, EthernetAddress>> _ip2mac{};
 
-	// requesting
-	//         ip             ddl_tick        arp frame
-	std::map<uint32_t, std::pair<uint64_t, EthernetFrame>> _arp_requests {};
+    // requesting
+    //         ip             ddl_tick        arp frame
+    std::map<uint32_t, std::pair<uint64_t, EthernetFrame>> _arp_requests{};
 
-	// wait for mac to send
-	//         ip              to send's ipv4 frame
-	std::map<uint32_t, shared_ptr<std::queue<EthernetFrame>>> _waitArp {};
+    // wait for mac to send
+    //         ip              to send's ipv4 frame
+    std::map<uint32_t, shared_ptr<std::queue<EthernetFrame>>> _waitArp{};
 
-	ARPMessage assembleOneARP(EthernetAddress src, EthernetAddress dst, uint32_t ip_src, uint32_t ip_dst, uint16_t opcode); 
+    ARPMessage assembleOneARP(EthernetAddress src,
+                              EthernetAddress dst,
+                              uint32_t ip_src,
+                              uint32_t ip_dst,
+                              uint16_t opcode);
 
-	EthernetHeader assembleOneEtherHeader(EthernetAddress src, EthernetAddress dst, uint16_t type); 
+    EthernetHeader assembleOneEtherHeader(EthernetAddress src, EthernetAddress dst, uint16_t type);
 
-	void sendFrameWaitArp(uint32_t ip, EthernetAddress mac); 
+    void sendFrameWaitArp(uint32_t ip, EthernetAddress mac);
 
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses

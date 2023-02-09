@@ -20,23 +20,22 @@ class TCPReceiver {
     //! The maximum number of bytes we'll store.
     size_t _capacity;
 
-    bool _syn {false};
-    WrappingInt32 _isn {0};
-    WrappingInt32 _ackno {0};
-	
+    bool _syn{false};
+    WrappingInt32 _isn{0};
+    WrappingInt32 _ackno{0};
 
     enum Status {
-		CLOSED,
-		SYN_RECV,
-		// SYN_SENT,
-		ESTABLISHED,
-    FIN_RECV
+        CLOSED,
+        SYN_RECV,
+        // SYN_SENT,
+        ESTABLISHED,
+        FIN_RECV
     };
 
-	Status status {Status::CLOSED};
+    Status status{Status::CLOSED};
 
-  bool get_fin(TCPHeader & header, Buffer & payLoad, uint64_t absolute_seqno, uint64_t absolute_ackno); 
-	std::pair<string, uint64_t> get_valid_string(uint64_t absolute_seqno, uint64_t absolute_ackno, Buffer & payLoad);
+    bool get_fin(TCPHeader &header, Buffer &payLoad, uint64_t absolute_seqno, uint64_t absolute_ackno);
+    std::pair<string, uint64_t> get_valid_string(uint64_t absolute_seqno, uint64_t absolute_ackno, Buffer &payLoad);
 
   public:
     //! \brief Construct a TCP receiver

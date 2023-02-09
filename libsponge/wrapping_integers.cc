@@ -33,7 +33,7 @@ uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     // todo: the closest pos, but right can not less than isn
     uint64_t val = checkpoint + isn.raw_value();
 
-    // no have right wrap 
+    // no have right wrap
     if (val <= 0xFFFFFFFF) {
         uint64_t cur = (val & 0xFFFFFFFF00000000) | n.raw_value();
         uint64_t left = ((val + 0x100000000) & 0xFFFFFFFF00000000) | n.raw_value();
@@ -51,16 +51,16 @@ uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
         uint64_t left = ((val + 0x100000000) & 0xFFFFFFFF00000000) | n.raw_value();
         uint64_t cur = (val & 0xFFFFFFFF00000000) | n.raw_value();
         uint64_t right = ((val - 0x100000000) & 0xFFFFFFFF00000000) | n.raw_value();
-    
+
         uint64_t diffl = left - val;
         uint64_t diffc = val < cur ? cur - val : val - cur;
         uint64_t diffr = val - right;
-        
+
         // no need val in the second wrap, bacause right can decide
         if (right < isn.raw_value()) {
-                val = diffl < diffc ? left : cur;
+            val = diffl < diffc ? left : cur;
         } else {
-            val = diffl < diffc ? (diffl < diffr ? left : right) : (diffc < diffr ? cur : right); 
+            val = diffl < diffc ? (diffl < diffr ? left : right) : (diffc < diffr ? cur : right);
         }
     }
 

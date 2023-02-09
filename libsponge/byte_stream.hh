@@ -1,9 +1,9 @@
 #ifndef SPONGE_LIBSPONGE_BYTE_STREAM_HH
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
-#include <string>
 #include <deque>
 #include <memory>
+#include <string>
 using namespace std;
 
 //! \brief An in-order byte stream.
@@ -22,11 +22,11 @@ class ByteStream {
 
     bool _error{};  //!< Flag indicating that the stream suffered an error.
     shared_ptr<deque<char>> _buffer;
-	size_t _capacity;
-	size_t _bytes_written {0};
-	size_t _bytes_read {0};
-	bool _eof {false};
-	bool _input_end {false};
+    size_t _capacity;
+    size_t _bytes_written{0};
+    size_t _bytes_read{0};
+    bool _eof{false};
+    bool _input_end{false};
 
   public:
     //! Construct a stream with room for `capacity` bytes.

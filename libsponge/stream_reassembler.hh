@@ -4,10 +4,10 @@
 #include "byte_stream.hh"
 
 #include <cstdint>
+#include <iostream>
 #include <list>
 #include <memory>
 #include <string>
-#include <iostream>
 using namespace std;
 
 /* 整体思路：
@@ -197,7 +197,7 @@ class StreamReassembler {
         BINEIN,
         BINEOUT,
 
-        // BNO ENO   => NO, out of cache 
+        // BNO ENO   => NO, out of cache
         BNOENO,
 
         // BAT ENO BOUT    => AT, in the cache list
@@ -257,46 +257,44 @@ class StreamReassembler {
     //! \returns `true` if no substrings are waiting to be assembled
     bool empty() const;
 
-    size_t window_size(void) const{
-		// entire window size => capacity
+    size_t window_size(void) const {
+        // entire window size => capacity
 
-		// entire window size = _output_unread_bytes + remain window size 
+        // entire window size = _output_unread_bytes + remain window size
 
-		return _capacity - _output.buffer_size();
+        return _capacity - _output.buffer_size();
     }
-	// entire cache is the window
-	size_t ackno_index(void) const {
-		return next_idx;
-	}
+    // entire cache is the window
+    size_t ackno_index(void) const { return next_idx; }
 
-  bool isToEof (void) const {
-      if (!_eof) return false;
+    bool isToEof(void) const {
+        if (!_eof)
+            return false;
 
-      return _eof_bytes == next_idx;
-  }
-	// for debug
-	void dump_cache_graph(uint64_t _isn) {
-		cout << "--------------------------------------------------------" << endl;
-		
-    for (auto & c : *cache_list) {
-			cout << "|    ";
+        return _eof_bytes == next_idx;
+    }
+    // for debug
+    void dump_cache_graph(uint64_t _isn) {
+        cout << "--------------------------------------------------------" << endl;
 
-			cout << "begin: " << _isn + c.idx + 1;
-			
-			cout << "      ";
-			
-			cout << "end:" << _isn + c.idx + c.s.size() + 1;
+        for (auto &c : *cache_list) {
+            cout << "|    ";
 
-      cout << "      ";
+            cout << "begin: " << _isn + c.idx + 1;
 
-      cout << "size:" << c.s.size();
+            cout << "      ";
 
-			cout << endl;
-		}
+            cout << "end:" << _isn + c.idx + c.s.size() + 1;
 
-		cout << "--------------------------------------------------------" << endl;
-	}
+            cout << "      ";
 
+            cout << "size:" << c.s.size();
+
+            cout << endl;
+        }
+
+        cout << "--------------------------------------------------------" << endl;
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

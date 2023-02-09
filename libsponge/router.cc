@@ -31,12 +31,53 @@ void Router::add_route(const uint32_t route_prefix,
 
     DUMMY_CODE(route_prefix, prefix_length, next_hop, interface_num);
     // Your code here.
+
+    _route_table.push_back({route_prefix, prefix_length, next_hop, interface_num});
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
     DUMMY_CODE(dgram);
     // Your code here.
+    
+    // ttl is zero, directly drop
+    if (dgram.header().ttl == 0) return;
+    // modify ttl
+    dgram.header().ttl--;
+    
+    if (dgram.header().ttl == 0) return;
+    // directly modify ip, then interface modify the mac
+
+    uint64_t max_prefix = 0;
+    RouteTableEntry e;
+    bool matched = false;
+
+    // find the most specific route
+    for (auto & entry : _route_table) {
+        uint64_t mask = getMask(entry.prefix_length);
+    
+        if ((dgram.header().dst & mask) == (entry.route_prefix & mask)) {
+            // must >=. because prefix_length may be zero
+            if (entry.prefix_length >= max_prefix) {
+                matched = true;
+                max_prefix = entry.prefix_length;
+                e = entry;
+            }
+        }
+    }
+
+    // may be have default route, its route_prefix = 0.0.0.0, prefix_length = 0
+
+    // no match  =>  drop directly
+    if (!matched)  return;
+
+
+    // get the next_hop     =>   next_hop is empty, next_hop is dest itself; the child network in the router
+    //                      =>                                               next hop is the next router's ip
+    Address next_hop = e.next_hop.has_value() ? e.next_hop.value() : Address::from_ipv4_numeric(dgram.header().dst);
+
+    // send to the interface
+    _interfaces[e.interface_num].send_datagram(dgram, next_hop);
 }
 
 void Router::route() {
@@ -48,4 +89,17 @@ void Router::route() {
             queue.pop();
         }
     }
+}
+
+uint32_t Router::getMask(uint8_t prefix_length) {
+    uint32_t ret = 0;
+
+    for (int i = 0; i < prefix_length; ++i) {
+        ret <<= 1;
+        ret |= 1;
+    }
+
+    ret <<= (32 - prefix_length);
+
+    return ret;
 }
